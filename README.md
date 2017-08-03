@@ -12,7 +12,6 @@
 - [Scheduling](#scheduling)
 - [Logging](#logging)
 - [Error Codes](#error codes)
-- [Change Log](#change log)
 
 # Installation
 
