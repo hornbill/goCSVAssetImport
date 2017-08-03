@@ -38,8 +38,8 @@ func main() {
 
 	//-- Output
 	logger(1, "---- Hornbill CSV Asset Import Utility V"+version+" ----", true)
-	logger(1, "Flag - Config File "+fmt.Sprintf("%s", configFileName), true)
-	logger(1, "Flag - Zone "+fmt.Sprintf("%s", configZone), true)
+	logger(1, "Flag - Config File "+configFileName, true)
+	logger(1, "Flag - Zone "+configZone, true)
 	logger(1, "Flag - Dry Run "+fmt.Sprintf("%v", configDryRun), true)
 
 	//Check maxGoroutines for valid value
@@ -89,7 +89,7 @@ func main() {
 	logger(1, "Created: "+fmt.Sprintf("%d", counters.created), true)
 	logger(1, "Created Skipped: "+fmt.Sprintf("%d", counters.createskipped), true)
 	//-- Show Time Takens
-	endTime = time.Now().Sub(startTime)
+	endTime = time.Since(startTime)
 	logger(1, "Time Taken: "+fmt.Sprintf("%v", endTime), true)
 	logger(1, "---- Hornbill CSV Asset Import Complete ---- ", true)
 }
@@ -139,14 +139,14 @@ func getAssetClass(confAssetType string) (assetClass string, assetType int) {
 	XMLGetMeta, xmlmcErr := espXmlmc.Invoke("data", "entityBrowseRecords")
 	if xmlmcErr != nil {
 		logger(4, "API Call failed when retrieving Asset Class:"+fmt.Sprintf("%v", xmlmcErr), false)
-		logger(1, "API XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+		logger(1, "API XML: "+XMLSTRING, false)
 	}
 
 	var xmlRespon xmlmcTypeListResponse
 	err := xml.Unmarshal([]byte(XMLGetMeta), &xmlRespon)
 	if err != nil {
 		logger(4, "Could not get Asset Class and Type. Please check AssetType within your configuration file:"+fmt.Sprintf("%v", err), true)
-		logger(1, "API XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+		logger(1, "API XML: "+XMLSTRING, false)
 	} else {
 		assetClass = xmlRespon.Params.RowData.Row.TypeClass
 		assetType = xmlRespon.Params.RowData.Row.TypeID
@@ -161,42 +161,58 @@ func processAssets(arrAssets []map[string]string) {
 	bar := pb.StartNew(len(arrAssets))
 	logger(1, "Processing Assets", false)
 
-	//Get the identity of the AssetID field from the config
-	assetIDIdent := fmt.Sprintf("%v", CSVImportConf.CSVAssetIdentifier)
+	//Create 2 channels for sending and recieving from workers
+	jobs := make(chan map[string]string, len(arrAssets))
+	results := make(chan bool, len(arrAssets))
 
-	//-- Loop each asset
-	maxGoroutinesGuard := make(chan struct{}, maxGoroutines)
+	for w := 1; w <= maxGoroutines; w++ {
+		go workers(jobs, results)
+	}
 
 	for _, assetRecord := range arrAssets {
-		maxGoroutinesGuard <- struct{}{}
-		worker.Add(1)
-		assetMap := assetRecord
-		//Get the asset ID for the current record
-		assetID := fmt.Sprintf("%s", assetMap[assetIDIdent])
-		espXmlmc := apiLib.NewXmlmcInstance(CSVImportConf.URL)
-		espXmlmc.SetAPIKey(CSVImportConf.APIKey)
-		go func() {
-			defer worker.Done()
-			time.Sleep(1 * time.Millisecond)
-			mutexBar.Lock()
-			bar.Increment()
-			mutexBar.Unlock()
-
-			var boolUpdate = false
-			boolUpdate, assetIDInstance := getAssetID(assetID, espXmlmc)
-			//-- Update or Create Asset
-			if boolUpdate {
-				logger(1, "Update Asset: "+assetID, false)
-				updateAsset(assetMap, assetIDInstance, espXmlmc)
-			} else {
-				logger(1, "Create Asset: "+assetID, false)
-				createAsset(assetMap, espXmlmc)
-			}
-			<-maxGoroutinesGuard
-		}()
+		jobs <- assetRecord
+		//Update our progressbar
+		mutexBar.Lock()
+		bar.Increment()
+		mutexBar.Unlock()
 	}
-	worker.Wait()
+	//closing the channel kills the go routine workers we have spun up, once the channel returns nil when reading
+	close(jobs)
+
+	//Loop over our results channel and throw away the results, this is to stop terminating early with work still going on.
+	for a := 0; a < len(arrAssets); a++ {
+		//We are not really worried about the results just want to make sure all workers complete before me move on
+		<-results
+	}
+
 	bar.FinishPrint("Processing Complete!")
+}
+
+//Workers that do the updating and reuse the same apilib pool for all work.
+func workers(jobs chan map[string]string, result chan bool) {
+
+	espXmlmc := apiLib.NewXmlmcInstance(CSVImportConf.URL)
+	espXmlmc.SetAPIKey(CSVImportConf.APIKey)
+	assetIDIdent := fmt.Sprintf("%v", CSVImportConf.CSVAssetIdentifier)
+
+	for asset := range jobs {
+
+		//Get the asset ID for the current record
+		assetID := asset[assetIDIdent]
+		time.Sleep(1 * time.Millisecond)
+
+		var boolUpdate = false
+		boolUpdate, assetIDInstance := getAssetID(assetID, espXmlmc)
+		//-- Update or Create Asset
+		if boolUpdate {
+			logger(1, "Update Asset: "+assetID, false)
+			updateAsset(asset, assetIDInstance, espXmlmc)
+		} else {
+			logger(1, "Create Asset: "+assetID, false)
+			createAsset(asset, espXmlmc)
+		}
+		result <- true
+	}
 }
 
 //getAssetID -- Check if asset is on the instance
@@ -215,17 +231,17 @@ func getAssetID(assetName string, espXmlmc *apiLib.XmlmcInstStruct) (bool, strin
 	XMLAssetSearch, xmlmcErr := espXmlmc.Invoke("data", "entityBrowseRecords")
 	if xmlmcErr != nil {
 		logger(4, "API Call failed when searching instance for existing Asset:"+fmt.Sprintf("%v", xmlmcErr), false)
-		logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+		logger(1, "API Call XML: "+XMLSTRING, false)
 	} else {
 		var xmlRespon xmlmcAssetResponse
 		err := xml.Unmarshal([]byte(XMLAssetSearch), &xmlRespon)
 		if err != nil {
 			logger(3, "Unable to Search for Asset: "+fmt.Sprintf("%v", err), true)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+			logger(1, "API Call XML: "+XMLSTRING, false)
 		} else {
 			if xmlRespon.MethodResult != "ok" {
 				logger(3, "Unable to Search for Asset: "+xmlRespon.State.ErrorRet, true)
-				logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+				logger(1, "API Call XML: "+XMLSTRING, false)
 			} else {
 				returnAssetID = xmlRespon.Params.RowData.Row.AssetID
 				//-- Check Response
@@ -361,12 +377,12 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) bool {
 	espXmlmc.CloseElement("relatedEntityData")
 
 	//-- Check for Dry Run
-	if configDryRun != true {
+	if !configDryRun {
 		var XMLSTRING = espXmlmc.GetParam()
 		XMLCreate, xmlmcErr := espXmlmc.Invoke("data", "entityAddRecord")
 		if xmlmcErr != nil {
 			logger(4, "Error running entityAddRecord API for createAsset:"+fmt.Sprintf("%v", xmlmcErr), false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+			logger(1, "API Call XML: "+XMLSTRING, false)
 		}
 		var xmlRespon xmlmcResponse
 
@@ -376,12 +392,12 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) bool {
 			counters.createskipped++
 			mutexCounters.Unlock()
 			logger(4, "Unable to read response from Hornbill instance from entityAddRecord API for createAsset:"+fmt.Sprintf("%v", err), false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+			logger(1, "API Call XML: "+XMLSTRING, false)
 			return false
 		}
 		if xmlRespon.MethodResult != "ok" {
 			logger(3, "Unable to add asset: "+xmlRespon.State.ErrorRet, false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+			logger(1, "API Call XML: "+XMLSTRING, false)
 			mutexCounters.Lock()
 			counters.createskipped++
 			mutexCounters.Unlock()
@@ -394,7 +410,7 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) bool {
 	} else {
 		//-- DEBUG XML TO LOG FILE
 		var XMLSTRING = espXmlmc.GetParam()
-		logger(1, "Asset Create XML "+fmt.Sprintf("%s", XMLSTRING), false)
+		logger(1, "Asset Create XML "+XMLSTRING, false)
 		mutexCounters.Lock()
 		counters.createskipped++
 		mutexCounters.Unlock()
@@ -508,11 +524,11 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 
 	var XMLSTRING = espXmlmc.GetParam()
 	//-- Check for Dry Run
-	if configDryRun != true {
+	if !configDryRun {
 		XMLUpdate, xmlmcErr := espXmlmc.Invoke("data", "entityUpdateRecord")
 		if xmlmcErr != nil {
 			logger(4, "API Call failed when Updating Asset:"+fmt.Sprintf("%v", xmlmcErr), false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+			logger(1, "API Call XML: "+XMLSTRING, false)
 			mutexCounters.Lock()
 			counters.updatedSkipped++
 			mutexCounters.Unlock()
@@ -524,7 +540,7 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		err := xml.Unmarshal([]byte(XMLUpdate), &xmlRespon)
 		if err != nil {
 			logger(4, "Unable to read response from Hornbill instance when Updating Asset:"+fmt.Sprintf("%v", err), false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+			logger(1, "API Call XML: "+XMLSTRING, false)
 			mutexCounters.Lock()
 			counters.updatedSkipped++
 			mutexCounters.Unlock()
@@ -532,7 +548,7 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		}
 		if xmlRespon.MethodResult != "ok" && xmlRespon.State.ErrorRet != "There are no values to update" {
 			logger(3, "Unable to Update Asset: "+xmlRespon.State.ErrorRet, false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+			logger(1, "API Call XML: "+XMLSTRING, false)
 			mutexCounters.Lock()
 			counters.updatedSkipped++
 			mutexCounters.Unlock()
@@ -573,7 +589,7 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		XMLUpdateExt, xmlmcErrExt := espXmlmc.Invoke("data", "entityUpdateRecord")
 		if xmlmcErrExt != nil {
 			logger(4, "API Call failed when Updating Asset Extended Details:"+fmt.Sprintf("%v", xmlmcErrExt), false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRINGEXT), false)
+			logger(1, "API Call XML: "+XMLSTRINGEXT, false)
 			mutexCounters.Lock()
 			counters.updatedSkipped++
 			mutexCounters.Unlock()
@@ -584,7 +600,7 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		err = xml.Unmarshal([]byte(XMLUpdateExt), &xmlResponExt)
 		if err != nil {
 			logger(4, "Unable to read response from Hornbill instance when Updating Asset Extended Details:"+fmt.Sprintf("%v", err), false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRINGEXT), false)
+			logger(1, "API Call XML: "+XMLSTRINGEXT, false)
 			mutexCounters.Lock()
 			counters.updatedSkipped++
 			mutexCounters.Unlock()
@@ -592,7 +608,7 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		}
 		if xmlResponExt.MethodResult != "ok" && xmlResponExt.State.ErrorRet != "There are no values to update" {
 			logger(3, "Unable to Update Asset Extended Details: "+xmlResponExt.State.ErrorRet, false)
-			logger(1, "API Call XML: "+fmt.Sprintf("%s", XMLSTRINGEXT), false)
+			logger(1, "API Call XML: "+XMLSTRINGEXT, false)
 			mutexCounters.Lock()
 			counters.updatedSkipped++
 			mutexCounters.Unlock()
@@ -603,7 +619,7 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 			boolRecordUpdated = true
 		}
 
-		if boolRecordUpdated == false {
+		if !boolRecordUpdated {
 			mutexCounters.Lock()
 			counters.updatedSkipped++
 			mutexCounters.Unlock()
@@ -623,17 +639,17 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 			XMLUpdate, xmlmcErr := espXmlmc.Invoke("data", "entityUpdateRecord")
 			if xmlmcErr != nil {
 				logger(4, "API Call failed when setting Last Updated values:"+fmt.Sprintf("%v", xmlmcErr), false)
-				logger(1, "Asset Last Updated XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+				logger(1, "Asset Last Updated XML: "+XMLSTRING, false)
 			}
 			var xmlRespon xmlmcResponse
 			err := xml.Unmarshal([]byte(XMLUpdate), &xmlRespon)
 			if err != nil {
 				logger(4, "Unable to read response from Hornbill instance when setting Last Updated values:"+fmt.Sprintf("%v", err), false)
-				logger(1, "Asset Last Updated XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+				logger(1, "Asset Last Updated XML: "+XMLSTRING, false)
 			}
 			if xmlRespon.MethodResult != "ok" && xmlRespon.State.ErrorRet != "There are no values to update" {
 				logger(3, "Unable to set Last Updated details for asset: "+xmlRespon.State.ErrorRet, false)
-				logger(1, "Asset Last Updated XML: "+fmt.Sprintf("%s", XMLSTRING), false)
+				logger(1, "Asset Last Updated XML: "+XMLSTRING, false)
 			}
 			mutexCounters.Lock()
 			counters.updated++
@@ -645,7 +661,7 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		mutexCounters.Lock()
 		counters.updatedSkipped++
 		mutexCounters.Unlock()
-		logger(1, "Asset Update XML "+fmt.Sprintf("%s", XMLSTRING), false)
+		logger(1, "Asset Update XML "+XMLSTRING, false)
 		espXmlmc.ClearParam()
 	}
 	return true
@@ -673,10 +689,10 @@ func getFieldValue(k string, v string, u map[string]string) string {
 			valFieldMap = fmt.Sprintf("%v", u[valFieldMap])
 		}
 		if valFieldMap != "" {
-			if strings.Contains(strings.ToLower(k), "date") == true {
+			if strings.Contains(strings.ToLower(k), "date") {
 				valFieldMap = checkDateString(valFieldMap)
 			}
-			if strings.Contains(valFieldMap, "[") == true {
+			if strings.Contains(valFieldMap, "[") {
 				valFieldMap = ""
 			} else {
 				//20160215 Check for NULL (<nil>) field value
@@ -767,17 +783,6 @@ func logger(t int, s string, outputtoCLI bool) {
 	log.SetOutput(f)
 	log.Println(errorLogPrefix + s)
 	mutex.Unlock()
-}
-
-// espLogger -- Log to ESP
-func espLogger(message string, severity string) {
-	espXmlmc := apiLib.NewXmlmcInstance(CSVImportConf.URL)
-	espXmlmc.SetAPIKey(CSVImportConf.APIKey)
-	espXmlmc.SetParam("fileName", "CSV_Asset_Import")
-	espXmlmc.SetParam("group", "general")
-	espXmlmc.SetParam("severity", severity)
-	espXmlmc.SetParam("message", message)
-	espXmlmc.Invoke("system", "logMessage")
 }
 
 // checkDateString - returns date from supplied string

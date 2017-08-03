@@ -9,7 +9,7 @@ import (
 )
 
 //----- Constants -----
-const version = "1.0.0"
+const version = "1.0.1"
 const appServiceManager = "com.hornbill.servicemanager"
 
 //----- Variables -----
@@ -72,14 +72,6 @@ type csvImportConfStruct struct {
 	AssetTypeFieldMapping    map[string]interface{}
 }
 
-type siteLookupStruct struct {
-	Enabled  bool
-	QueryCol string
-}
-type typeLookupStruct struct {
-	Enabled   bool
-	Attribute string
-}
 type xmlmcResponse struct {
 	MethodResult string       `xml:"status,attr"`
 	Params       paramsStruct `xml:"params"`
