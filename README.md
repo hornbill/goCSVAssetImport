@@ -23,8 +23,8 @@
 * Open Command Line Prompt as Administrator
 * Change Directory to the folder with goCSVAssetImport_*.exe `C:\asset_import\`
 * Run the command :
-For Windows 32bit Systems: goCSVAssetImport_w32.exe -dryrun=true -file=conf_computerSystem.json
-For Windows 64bit Systems: goCSVAssetImport_w64.exe -dryrun=true -file=conf_computerSystem.json
+For Windows 32bit Systems: goCSVAssetImport_x86.exe -dryrun=true -file=conf_computerSystem.json
+For Windows 64bit Systems: goCSVAssetImport_x64.exe -dryrun=true -file=conf_computerSystem.json
 
 # config
 
@@ -159,7 +159,7 @@ Command Line Parameters
 # Testing
 If you run the application with the argument dryrun=true then no assets will be created or updated, the XML used to create or update will be saved in the log file so you can ensure the data mappings are correct before running the import.
 
-'goCSVAssetImport_w64.exe -dryrun=true'
+'goCSVAssetImport_x64.exe -dryrun=true'
 
 # Scheduling
 
