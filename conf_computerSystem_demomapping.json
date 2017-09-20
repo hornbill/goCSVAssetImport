@@ -1,8 +1,11 @@
 {
-  "APIKey": "your_api_key_here",
-  "InstanceId": "your_instance_name",
+  "APIKey": "yourapikeygoeshere",
+  "InstanceId": "yourinstanceidgoeshere",
   "AssetIdentifier":"h_name",
   "CSVAssetIdentifier":"assetTag",
+  "CSVCommaCharacter": ",",
+  "CSVLazyQuotes": false,
+  "CSVFieldsPerRecord": 0,
   "LogSizeBytes":1000000,
   "AssetTypes": {
       "Desktop": "assetcomputer_desktops.csv"

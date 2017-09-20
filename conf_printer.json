@@ -3,6 +3,9 @@
   "InstanceId": "",
   "AssetIdentifier":"h_name",
   "CSVAssetIdentifier":"assetTag",
+  "CSVCommaCharacter": ",",
+  "CSVLazyQuotes": false,
+  "CSVFieldsPerRecord": 0,
   "LogSizeBytes":1000000,
   "AssetTypes": {
       "Printer": "assetprinter_printer.csv",

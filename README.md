@@ -36,6 +36,9 @@ Example JSON File:
   "InstanceId": "your_instance_name",
   "AssetIdentifier":"h_name",
   "CSVAssetIdentifier":"assetTag",
+  "CSVCommaCharacter": ",",
+  "CSVLazyQuotes": false,
+  "CSVFieldsPerRecord": 0,
   "LogSizeBytes":1000000,
   "AssetTypes": {
       "Desktop": "\\\\path\\to\\csv\\assetcomputer_desktops.csv"
@@ -125,6 +128,9 @@ Example JSON File:
 * "InstanceId" - Instance Id
 * "AssetIdentifier" - The Hornbill asset attribute that holds the unique asset identifier (so that the code can work out which asset records are to be inserted or updated)
 * "CSVAssetIdentifier" - The CSV column name that holds the unique asset identifier (so that the code can work out which asset records are to be inserted or updated)
+* "CSVCommaCharacter" - The field separator (single) character - if left out, the default character will be a comma.
+* "CSVLazyQuotes" - The ability to give the CSV reader a hint that the csv file might be using lazy quotes. Defaults to false.
+* "CSVFieldsPerRecord" - The ability to give the CSV reader a hint about the amount of fields in each record. Defaults to 0, leaving the CSV reader to do the heavy lifting.
 * "LogSizeBytes" - The maximum size that the generated Log Files should be, in bytes. Setting this value to 0 will cause the tool to create one log file only and not split the results between multiple logs.
 
 #### AssetTypes
