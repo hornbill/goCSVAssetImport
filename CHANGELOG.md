@@ -1,3 +1,9 @@
+## 1.0.3 (November 01st, 2017)
+
+Features:
+
+  - In certain circumstances (csv exporters) extra carriage returns are added as a record delimiter. An additional optional boolean CSVCarriageReturnRemoval will strip out all non-record delimiting carriage returns when set to true (default is false).
+
 ## 1.0.2 (September 20th, 2017)
 
 Features:

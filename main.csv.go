@@ -1,11 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
 )
+
+type customReader struct{ r io.Reader }
+
+func (r *customReader) Read(b []byte) (n int, err error) {
+	x := make([]byte, len(b))
+	if n, err = r.r.Read(x); err != nil {
+		return n, err
+	}
+	copy(b, bytes.Replace(x, []byte("\r"), []byte("\n"), -1))
+	return n, nil
+}
 
 func getAssetsFromCSV(csvFile, assetType string) (bool, []map[string]string) {
 	rows := []map[string]string{}
@@ -28,8 +40,14 @@ func getAssetsFromCSV(csvFile, assetType string) (bool, []map[string]string) {
         file.Seek(0,0)
     }
 
+	var r *csv.Reader
+	if CSVImportConf.CSVCarriageReturnRemoval {
+		custom := &customReader{file}
+		r = csv.NewReader(custom)
+	} else {
+		r = csv.NewReader(file)
+	}
     //because the json configuration loader cannot handle runes, code here to convert string to rune-array and getting first item
-	r := csv.NewReader(file)
 	if CSVImportConf.CSVCommaCharacter != "" {
         CSVCommaRunes := []rune(CSVImportConf.CSVCommaCharacter)
         r.Comma = CSVCommaRunes[0]

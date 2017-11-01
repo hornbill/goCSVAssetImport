@@ -39,6 +39,7 @@ Example JSON File:
   "CSVCommaCharacter": ",",
   "CSVLazyQuotes": false,
   "CSVFieldsPerRecord": 0,
+  "CSVCarriageReturnRemoval": false,
   "LogSizeBytes":1000000,
   "AssetTypes": {
       "Desktop": "\\\\path\\to\\csv\\assetcomputer_desktops.csv"
@@ -131,6 +132,7 @@ Example JSON File:
 * "CSVCommaCharacter" - The field separator (single) character - if left out, the default character will be a comma.
 * "CSVLazyQuotes" - The ability to give the CSV reader a hint that the csv file might be using lazy quotes. Defaults to false.
 * "CSVFieldsPerRecord" - The ability to give the CSV reader a hint about the amount of fields in each record. Defaults to 0, leaving the CSV reader to do the heavy lifting.
+* "CSVCarriageReturnRemoval" - Certain CSV exporting systems will add extra carriage returns as a record delimiter. This is expected not to be common, hence the setting is left out of the configuration files (it is added to conf_computerSystem.json only for completeness sake). IF not set, then the default value is false and no carriages returns will be stripped from the data. IF set to true, then all carriage returns (possibly even intended ones) will be stripped.
 * "LogSizeBytes" - The maximum size that the generated Log Files should be, in bytes. Setting this value to 0 will cause the tool to create one log file only and not split the results between multiple logs.
 
 #### AssetTypes

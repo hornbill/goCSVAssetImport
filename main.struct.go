@@ -9,7 +9,7 @@ import (
 )
 
 //----- Constants -----
-const version = "1.0.2"
+const version = "1.0.3"
 const appServiceManager = "com.hornbill.servicemanager"
 
 //----- Variables -----
@@ -69,6 +69,7 @@ type csvImportConfStruct struct {
 	CSVCommaCharacter        string
 	CSVLazyQuotes            bool
 	CSVFieldsPerRecord       int
+	CSVCarriageReturnRemoval bool
 	LogSizeBytes             int64
 	AssetTypes               map[string]interface{}
 	AssetGenericFieldMapping map[string]interface{}
