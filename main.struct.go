@@ -9,7 +9,7 @@ import (
 )
 
 //----- Constants -----
-const version = "1.0.3"
+const version = "1.1.0"
 const appServiceManager = "com.hornbill.servicemanager"
 
 //----- Variables -----
@@ -89,7 +89,8 @@ type xmlmcUpdateResponse struct {
 	State              stateStruct `xml:"state"`
 }
 type updatedCols struct {
-	ColList []updatedCol `xml:",any"`
+	PrimaryKey string       `xml:"h_pk_asset_id"`
+	ColList    []updatedCol `xml:",any"`
 }
 
 type updatedCol struct {

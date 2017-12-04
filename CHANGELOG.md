@@ -1,4 +1,11 @@
-## 1.0.3 (November 01st, 2017)
+## 1.0.4 (December 4th, 2017)
+
+Features:
+
+  - Adds Asset URN to record once asset record has been created
+  - Updates Asset URN during asset update
+
+## 1.0.3 (November 1st, 2017)
 
 Features:
 

@@ -6,6 +6,7 @@
   "CSVCommaCharacter": ",",
   "CSVLazyQuotes": false,
   "CSVFieldsPerRecord": 0,
+  "CSVCarriageReturnRemoval": false,
   "LogSizeBytes":1000000,
   "AssetTypes": {
       "Desktop": "assetcomputer_desktops.csv"
