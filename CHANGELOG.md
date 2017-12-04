@@ -1,4 +1,4 @@
-## 1.0.4 (December 4th, 2017)
+## 1.1.0 (December 4th, 2017)
 
 Features:
 
