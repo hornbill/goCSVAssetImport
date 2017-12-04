@@ -23,8 +23,8 @@
 * Open Command Line Prompt as Administrator
 * Change Directory to the folder with goCSVAssetImport_*.exe `C:\asset_import\`
 * Run the command :
-For Windows 32bit Systems: goCSVAssetImport_x86.exe -dryrun=true -file=conf_computerSystem.json
-For Windows 64bit Systems: goCSVAssetImport_x64.exe -dryrun=true -file=conf_computerSystem.json
+* For Windows 32bit Systems: goCSVAssetImport_x86.exe -dryrun=true -file=conf_computerSystem.json
+* For Windows 64bit Systems: goCSVAssetImport_x64.exe -dryrun=true -file=conf_computerSystem.json
 
 # config
 
