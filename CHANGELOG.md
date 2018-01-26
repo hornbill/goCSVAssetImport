@@ -1,3 +1,9 @@
+## 1.1.1 (January 26th, 2018)
+
+Defect fix:
+
+  - Fixed issue with Used By not being populated with a valid URN
+
 ## 1.1.0 (December 4th, 2017)
 
 Features:
