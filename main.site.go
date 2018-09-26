@@ -33,12 +33,14 @@ func searchSite(siteName string, espXmlmc *apiLib.XmlmcInstStruct) (bool, int) {
 	espXmlmc.SetParam("entity", "Site")
 	espXmlmc.SetParam("matchScope", "all")
 	espXmlmc.OpenElement("searchFilter")
-	espXmlmc.SetParam("h_site_name", siteName)
+	espXmlmc.SetParam("column", "h_site_name")
+	espXmlmc.SetParam("value", siteName)
+	//espXmlmc.SetParam("h_site_name", siteName)
 	espXmlmc.CloseElement("searchFilter")
 	espXmlmc.SetParam("maxResults", "1")
 
 	var XMLSTRING = espXmlmc.GetParam()
-	XMLSiteSearch, xmlmcErr := espXmlmc.Invoke("data", "entityBrowseRecords")
+	XMLSiteSearch, xmlmcErr := espXmlmc.Invoke("data", "entityBrowseRecords2")
 	if xmlmcErr != nil {
 		logger(4, "API Call failed when Searching Site:"+fmt.Sprintf("%v", xmlmcErr), false)
 		logger(1, "API XML: "+XMLSTRING, false)
