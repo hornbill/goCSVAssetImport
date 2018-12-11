@@ -4,54 +4,46 @@ import (
 	"encoding/xml"
 	"sync"
 	"time"
-
-	"github.com/hornbill/goApiLib"
 )
 
 //----- Constants -----
-const version = "1.1.2"
+const version = "1.2.0"
 const appServiceManager = "com.hornbill.servicemanager"
 
 //----- Variables -----
 var (
-	maxLogFileSize      int64
-	CSVImportConf       csvImportConfStruct
-	XmlmcInstanceConfig xmlmcConfig
-	Sites               []siteListStruct
-	counters            counterTypeStruct
-	configFileName      string
-	configMaxRoutines   string
-	configZone          string
-	configDryRun        bool
-	Customers           []customerListStruct
-	TimeNow             string
-	APITimeNow          string
-	startTime           time.Time
-	endTime             time.Duration
-	AssetClass          string
-	AssetTypeID         int
-	StrAssetType        string
-	StrCSVFile          string
-	espXmlmc            *apiLib.XmlmcInstStruct
-	mutex               = &sync.Mutex{}
-	mutexBar            = &sync.Mutex{}
-	mutexCounters       = &sync.Mutex{}
-	mutexCustomers      = &sync.Mutex{}
-	mutexSite           = &sync.Mutex{}
-	worker              sync.WaitGroup
-	maxGoroutines       = 1
-	logFilePart         = 0
+	maxLogFileSize    int64
+	CSVImportConf     csvImportConfStruct
+	Sites             []siteListStruct
+	Groups            []groupListStruct
+	counters          counterTypeStruct
+	configFileName    string
+	configMaxRoutines string
+	configDryRun      bool
+	Customers         []customerListStruct
+	TimeNow           string
+	APITimeNow        string
+	startTime         time.Time
+	endTime           time.Duration
+	AssetClass        string
+	AssetTypeID       int
+	StrAssetType      string
+	StrCSVFile        string
+	mutex             = &sync.Mutex{}
+	mutexBar          = &sync.Mutex{}
+	mutexCounters     = &sync.Mutex{}
+	mutexCustomers    = &sync.Mutex{}
+	mutexSite         = &sync.Mutex{}
+	mutexGroup        = &sync.Mutex{}
+	//worker              sync.WaitGroup
+	maxGoroutines = 1
+	logFilePart   = 0
 )
 
 //----- Structures -----
 type siteListStruct struct {
 	SiteName string
 	SiteID   int
-}
-type xmlmcConfig struct {
-	instance string
-	zone     string
-	url      string
 }
 type counterTypeStruct struct {
 	updated        uint16
@@ -80,6 +72,18 @@ type xmlmcResponse struct {
 	MethodResult string       `xml:"status,attr"`
 	Params       paramsStruct `xml:"params"`
 	State        stateStruct  `xml:"state"`
+}
+
+//Group Structs
+type xmlmcGroupListResponse struct {
+	MethodResult string      `xml:"status,attr"`
+	GroupID      string      `xml:"params>rowData>row>h_id"`
+	State        stateStruct `xml:"state"`
+}
+type groupListStruct struct {
+	GroupName string
+	GroupType int
+	GroupID   string
 }
 
 type xmlmcUpdateResponse struct {

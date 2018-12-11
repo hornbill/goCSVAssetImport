@@ -30,7 +30,6 @@ func main() {
 	TimeNow = strings.Replace(TimeNow, ":", "-", -1)
 	//-- Grab Flags
 	flag.StringVar(&configFileName, "file", "conf.json", "Name of Configuration File To Load")
-	flag.StringVar(&configZone, "zone", "eur", "Override the default Zone the instance sits in")
 	flag.BoolVar(&configDryRun, "dryrun", false, "Allow the Import to run without Creating or Updating Assets")
 	flag.StringVar(&configMaxRoutines, "concurrent", "1", "Maximum number of Assets to import concurrently.")
 	//-- Parse Flags
@@ -39,7 +38,6 @@ func main() {
 	//-- Output
 	logger(1, "---- Hornbill CSV Asset Import Utility V"+version+" ----", true)
 	logger(1, "Flag - Config File "+configFileName, true)
-	logger(1, "Flag - Zone "+configZone, true)
 	logger(1, "Flag - Dry Run "+fmt.Sprintf("%v", configDryRun), true)
 
 	//Check maxGoroutines for valid value
@@ -63,11 +61,6 @@ func main() {
 	if CSVImportConf.LogSizeBytes > 0 {
 		maxLogFileSize = CSVImportConf.LogSizeBytes
 	}
-
-	//-- Set Instance ID
-	SetInstance(configZone, CSVImportConf.InstanceID)
-	//-- Generate Instance XMLMC Endpoint
-	CSVImportConf.URL = getInstanceURL()
 
 	//Get asset types, process accordingly
 	for k, v := range CSVImportConf.AssetTypes {
@@ -127,7 +120,7 @@ func loadConfig() csvImportConfStruct {
 
 //getAssetClass -- Get Asset Class & Type ID from Asset Type Name
 func getAssetClass(confAssetType string) (assetClass string, assetType int) {
-	espXmlmc := apiLib.NewXmlmcInstance(CSVImportConf.URL)
+	espXmlmc := apiLib.NewXmlmcInstance(CSVImportConf.InstanceID)
 	espXmlmc.SetAPIKey(CSVImportConf.APIKey)
 	espXmlmc.SetParam("application", appServiceManager)
 	espXmlmc.SetParam("entity", "AssetsTypes")
@@ -193,7 +186,7 @@ func processAssets(arrAssets []map[string]string) {
 //Workers that do the updating and reuse the same apilib pool for all work.
 func workers(jobs chan map[string]string, result chan bool) {
 
-	espXmlmc := apiLib.NewXmlmcInstance(CSVImportConf.URL)
+	espXmlmc := apiLib.NewXmlmcInstance(CSVImportConf.InstanceID)
 	espXmlmc.SetAPIKey(CSVImportConf.APIKey)
 	assetIDIdent := fmt.Sprintf("%v", CSVImportConf.CSVAssetIdentifier)
 
@@ -279,6 +272,22 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 		}
 	}
 
+	//Get Company ID
+	companyID := ""
+	companyNameMapping := fmt.Sprintf("%v", CSVImportConf.AssetGenericFieldMapping["h_company_name"])
+	companyName := getFieldValue("h_company_name", companyNameMapping, u)
+	if companyName != "" {
+		companyIsInCache, CompanyIDCache := groupInCache(companyName, 5)
+		if companyIsInCache {
+			companyID = CompanyIDCache
+		} else {
+			companyIsOnInstance, CompanyIDInstance := searchGroup(companyName, 5, espXmlmc)
+			if companyIsOnInstance {
+				companyID = CompanyIDInstance
+			}
+		}
+	}
+
 	//Get Owned By name
 	ownedByName := ""
 	ownedByURN := ""
@@ -353,9 +362,14 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 			espXmlmc.SetParam("h_site", siteName)
 			espXmlmc.SetParam("h_site_id", siteID)
 		}
+		if strAttribute == "h_company_name" && companyID != "" && companyName != "" {
+			espXmlmc.SetParam("h_company_name", companyName)
+			espXmlmc.SetParam("h_company_id", companyID)
+		}
 		if strAttribute != "h_site" &&
 			strAttribute != "h_used_by" &&
 			strAttribute != "h_owned_by" &&
+			strAttribute != "h_company_name" &&
 			strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
 			espXmlmc.SetParam(strAttribute, getFieldValue(strAttribute, strMapping, u))
 		}
@@ -447,7 +461,6 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 		mutexCounters.Unlock()
 		espXmlmc.ClearParam()
 	}
-	return
 }
 
 // updateAsset -- Updates Asset record from the passed through map data and asset ID
@@ -468,6 +481,22 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 			//-- If Returned set output
 			if siteIsOnInstance {
 				siteID = strconv.Itoa(SiteIDInstance)
+			}
+		}
+	}
+
+	//Get Company ID
+	companyID := ""
+	companyNameMapping := fmt.Sprintf("%v", CSVImportConf.AssetGenericFieldMapping["h_company_name"])
+	companyName := getFieldValue("h_company_name", companyNameMapping, u)
+	if companyName != "" {
+		companyIsInCache, CompanyIDCache := groupInCache(companyName, 5)
+		if companyIsInCache {
+			companyID = CompanyIDCache
+		} else {
+			companyIsOnInstance, CompanyIDInstance := searchGroup(companyName, 5, espXmlmc)
+			if companyIsOnInstance {
+				companyID = CompanyIDInstance
 			}
 		}
 	}
@@ -543,9 +572,14 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 			espXmlmc.SetParam("h_site", siteName)
 			espXmlmc.SetParam("h_site_id", siteID)
 		}
+		if strAttribute == "h_company_name" && companyID != "" && companyName != "" {
+			espXmlmc.SetParam("h_company_name", companyName)
+			espXmlmc.SetParam("h_company_id", companyID)
+		}
 		if strAttribute != "h_site" &&
 			strAttribute != "h_used_by" &&
 			strAttribute != "h_owned_by" &&
+			strAttribute != "h_company_name" &&
 			strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
 			espXmlmc.SetParam(strAttribute, getFieldValue(strAttribute, strMapping, u))
 		}
