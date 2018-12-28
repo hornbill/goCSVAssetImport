@@ -331,7 +331,26 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 	if usedByName != "" {
 		usedByURN = "urn:sys:0:" + usedByName + ":" + usedByID
 	}
-
+	
+	//Last Logged On By
+	lastLoggedOnByURN := ""
+	lastLoggedOnUserMapping := fmt.Sprintf("%v", CSVImportConf.AssetTypeFieldMapping["h_last_logged_on_user"])
+	if lastLoggedOnUserMapping != "" {
+		lastLoggedOnByID := getFieldValue("h_last_logged_on_user", lastLoggedOnUserMapping, u)
+		if lastLoggedOnByID != "" {
+			lastLoggedOnByIsInCache, lastLoggedOnByNameCache := customerInCache(lastLoggedOnByID)
+			//-- Check if we have cached the customer already
+			if lastLoggedOnByIsInCache {
+				lastLoggedOnByURN = "urn:sys:0:" + lastLoggedOnByNameCache + ":" + lastLoggedOnByID
+			} else {
+				lastLoggedOnByIsOnInstance, lastLoggedOnByNameInstance := searchCustomer(lastLoggedOnByID, espXmlmc)
+				//-- If Returned set output
+				if lastLoggedOnByIsOnInstance {
+					lastLoggedOnByURN = "urn:sys:0:" + lastLoggedOnByNameInstance + ":" + lastLoggedOnByID
+				}
+			}
+		}
+	}
 	//Get/Set params from map stored against FieldMapping
 	strAttribute := ""
 	strMapping := ""
@@ -388,7 +407,10 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 	for k, v := range CSVImportConf.AssetTypeFieldMapping {
 		strAttribute = fmt.Sprintf("%v", k)
 		strMapping = fmt.Sprintf("%v", v)
-		if strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
+		if strAttribute == "h_last_logged_on_user" && lastLoggedOnByURN != "" {
+				espXmlmc.SetParam("h_last_logged_on_user", lastLoggedOnByURN)
+			}
+			if strAttribute != "h_last_logged_on_user" && strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
 			espXmlmc.SetParam(strAttribute, getFieldValue(strAttribute, strMapping, u))
 		}
 	}
@@ -545,6 +567,26 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		usedByURN = "urn:sys:0:" + usedByName + ":" + usedByID
 	}
 
+	//Last Logged On By
+	lastLoggedOnByURN := ""
+	lastLoggedOnUserMapping := fmt.Sprintf("%v", CSVImportConf.AssetTypeFieldMapping["h_last_logged_on_user"])
+	if lastLoggedOnUserMapping != "" {
+		lastLoggedOnByID := getFieldValue("h_last_logged_on_user", lastLoggedOnUserMapping, u)
+		if lastLoggedOnByID != "" {
+			lastLoggedOnByIsInCache, lastLoggedOnByNameCache := customerInCache(lastLoggedOnByID)
+			//-- Check if we have cached the customer already
+			if lastLoggedOnByIsInCache {
+				lastLoggedOnByURN = "urn:sys:0:" + lastLoggedOnByNameCache + ":" + lastLoggedOnByID
+			} else {
+				lastLoggedOnByIsOnInstance, lastLoggedOnByNameInstance := searchCustomer(lastLoggedOnByID, espXmlmc)
+				//-- If Returned set output
+				if lastLoggedOnByIsOnInstance {
+					lastLoggedOnByURN = "urn:sys:0:" + lastLoggedOnByNameInstance + ":" + lastLoggedOnByID
+				}
+			}
+		}
+	}
+
 	//Get/Set params from map stored against FieldMapping
 	strAttribute := ""
 	strMapping := ""
@@ -645,7 +687,10 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		for k, v := range CSVImportConf.AssetTypeFieldMapping {
 			strAttribute = fmt.Sprintf("%v", k)
 			strMapping = fmt.Sprintf("%v", v)
-			if strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
+			if strAttribute == "h_last_logged_on_user" && lastLoggedOnByURN != "" {
+				espXmlmc.SetParam("h_last_logged_on_user", lastLoggedOnByURN)
+			}
+			if strAttribute != "h_last_logged_on_user" && strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
 				espXmlmc.SetParam(strAttribute, getFieldValue(strAttribute, strMapping, u))
 			}
 		}
