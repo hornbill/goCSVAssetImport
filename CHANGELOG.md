@@ -1,10 +1,17 @@
 # CHANGELOG
 
+## 1.2.2 (April 16th, 2020)
+
+Changes:
+
+- Updated code to support Core application and platform changes
+- Added version flag to enable auto-build
+
 ## 1.2.1 (December 28th, 2018)
 
 Fixes:
 
-  - last_logged_on_user to URN conversion
+- last_logged_on_user to URN conversion
 
 ## 1.2.0 (December 11th, 2018)
 

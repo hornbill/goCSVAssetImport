@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/hornbill/color"
-	"github.com/hornbill/goApiLib"
+	apiLib "github.com/hornbill/goApiLib"
 	"github.com/hornbill/pb"
 )
 
@@ -32,8 +32,15 @@ func main() {
 	flag.StringVar(&configFileName, "file", "conf.json", "Name of Configuration File To Load")
 	flag.BoolVar(&configDryRun, "dryrun", false, "Allow the Import to run without Creating or Updating Assets")
 	flag.StringVar(&configMaxRoutines, "concurrent", "1", "Maximum number of Assets to import concurrently.")
+	flag.BoolVar(&configVersion, "version", false, "Return the Version number")
 	//-- Parse Flags
 	flag.Parse()
+
+	//-- If configVersion just output version number and die
+	if configVersion {
+		fmt.Printf("%v \n", version)
+		return
+	}
 
 	//-- Output
 	logger(1, "---- Hornbill CSV Asset Import Utility V"+version+" ----", true)
@@ -331,7 +338,7 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 	if usedByName != "" {
 		usedByURN = "urn:sys:0:" + usedByName + ":" + usedByID
 	}
-	
+
 	//Last Logged On By
 	lastLoggedOnByURN := ""
 	lastLoggedOnUserMapping := fmt.Sprintf("%v", CSVImportConf.AssetTypeFieldMapping["h_last_logged_on_user"])
@@ -408,9 +415,9 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 		strAttribute = fmt.Sprintf("%v", k)
 		strMapping = fmt.Sprintf("%v", v)
 		if strAttribute == "h_last_logged_on_user" && lastLoggedOnByURN != "" {
-				espXmlmc.SetParam("h_last_logged_on_user", lastLoggedOnByURN)
-			}
-			if strAttribute != "h_last_logged_on_user" && strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
+			espXmlmc.SetParam("h_last_logged_on_user", lastLoggedOnByURN)
+		}
+		if strAttribute != "h_last_logged_on_user" && strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
 			espXmlmc.SetParam(strAttribute, getFieldValue(strAttribute, strMapping, u))
 		}
 	}

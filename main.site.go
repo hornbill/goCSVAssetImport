@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hornbill/goApiLib"
+	apiLib "github.com/hornbill/goApiLib"
 )
 
 // siteInCache -- Function to check if passed-thorugh site name has been cached
@@ -30,6 +30,7 @@ func searchSite(siteName string, espXmlmc *apiLib.XmlmcInstStruct) (bool, int) {
 	boolReturn := false
 	intReturn := 0
 	//-- ESP Query for site
+	espXmlmc.SetParam("application", "com.hornbill.core")
 	espXmlmc.SetParam("entity", "Site")
 	espXmlmc.SetParam("matchScope", "all")
 	espXmlmc.OpenElement("searchFilter")
