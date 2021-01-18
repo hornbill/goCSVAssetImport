@@ -1,6 +1,11 @@
 # CHANGELOG
 
-## 1.2.2 (April 16th, 2020)
+## 1.2.3 (January 18th, 2021)
+
+Fixes:
+- fixed usage of AssetIdentifier
+
+## 1.2.2 (April 16th, 2020)
 
 Changes:
 
