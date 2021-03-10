@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.2.4 (March 10th, 2021)
+
+Fixes:
+- Exact Matching of asset name/identifier and type
+
 ## 1.2.3 (January 18th, 2021)
 
 Fixes:
