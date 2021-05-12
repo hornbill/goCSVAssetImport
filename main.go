@@ -69,21 +69,44 @@ func main() {
 		maxLogFileSize = CSVImportConf.LogSizeBytes
 	}
 
+	CSVImportConf.HornbillUserIDColumn = strings.ToLower(CSVImportConf.HornbillUserIDColumn)
+	//	if CSVImportConf.HornbillUserIDColumn == "" {
+	//		logger(1, "ID column set, so bringing in all users", false)
+	loadUsers()
+	//	}
+	var queryGroups []string
+	queryGroups = append(queryGroups, "company")
+	queryGroups = append(queryGroups, "department")
+	//	queryGroups[0] = "company"
+	loadGroups(queryGroups)
+
 	//Get asset types, process accordingly
 	for k, v := range CSVImportConf.AssetTypes {
 		StrAssetType = fmt.Sprintf("%v", k)
 		StrCSVFile = fmt.Sprintf("%v", v)
-		//Set Asset Class & Type vars from instance
-		AssetClass, AssetTypeID = getAssetClass(StrAssetType)
-		//-- Query Database
-		var boolAssets, arrAssets = getAssetsFromCSV(StrCSVFile, StrAssetType)
-		if boolAssets {
-			//Process records returned by query
-			processAssets(arrAssets)
+
+		if StrAssetType != "" && StrCSVFile != "" {
+			//Set Asset Class & Type vars from instance
+			AssetClass, AssetTypeID = getAssetClass(StrAssetType)
+			//-- Query Database
+			if AssetClass == "" || AssetTypeID == 0 {
+				color.Red("Asset type is not Found \n\n")
+			} else {
+				var boolAssets, arrAssets = getAssetsFromCSV(StrCSVFile, StrAssetType)
+				if boolAssets {
+					//Process records returned by query
+					processAssets(arrAssets)
+				}
+			}
+		} else {
+			color.Red("One type is not fully configured  (" + StrAssetType + "," + StrCSVFile + ") \n\n")
 		}
 	}
 
 	//-- End output
+	if counters.fullyskipped > 0 {
+		logger(1, "Records Skipped: "+fmt.Sprintf("%d", counters.fullyskipped)+" - no ID given", true)
+	}
 	logger(1, "Updated: "+fmt.Sprintf("%d", counters.updated), true)
 	logger(1, "Updated Skipped: "+fmt.Sprintf("%d", counters.updatedSkipped), true)
 	logger(1, "Created: "+fmt.Sprintf("%d", counters.created), true)
@@ -203,15 +226,22 @@ func workers(jobs chan map[string]string, result chan bool) {
 		assetID := asset[assetIDIdent]
 		time.Sleep(1 * time.Millisecond)
 
-		var boolUpdate = false
-		boolUpdate, assetIDInstance := getAssetID(assetID, espXmlmc)
-		//-- Update or Create Asset
-		if boolUpdate {
-			logger(1, "Update Asset: "+assetID, false)
-			updateAsset(asset, assetIDInstance, espXmlmc)
+		if assetID != "" {
+			var boolUpdate = false
+			boolUpdate, assetIDInstance := getAssetID(assetID, espXmlmc)
+			//-- Update or Create Asset
+			if boolUpdate {
+				logger(1, "Update Asset: "+assetID, false)
+				updateAsset(asset, assetIDInstance, espXmlmc)
+			} else {
+				logger(1, "Create Asset: "+assetID, false)
+				createAsset(asset, espXmlmc)
+			}
 		} else {
-			logger(1, "Create Asset: "+assetID, false)
-			createAsset(asset, espXmlmc)
+			logger(1, "No Asset to Match - skipped record", false)
+			mutexCounters.Lock()
+			counters.fullyskipped++
+			mutexCounters.Unlock()
 		}
 
 		result <- true
@@ -224,6 +254,10 @@ func workers(jobs chan map[string]string, result chan bool) {
 func getAssetID(assetName string, espXmlmc *apiLib.XmlmcInstStruct) (bool, string) {
 	boolReturn := false
 	returnAssetID := ""
+	if assetName == "" {
+		logger(4, "No Asset ID Specified", false)
+		return boolReturn, returnAssetID
+	}
 	espXmlmc.SetParam("application", appServiceManager)
 	espXmlmc.SetParam("entity", "Asset")
 	espXmlmc.OpenElement("searchFilter")
@@ -287,12 +321,33 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 		companyIsInCache, CompanyIDCache := groupInCache(companyName, 5)
 		if companyIsInCache {
 			companyID = CompanyIDCache
-		} else {
+		}
+		/*irrelevant as all (necessary) groups now in cache
+		else {
 			companyIsOnInstance, CompanyIDInstance := searchGroup(companyName, 5, espXmlmc)
 			if companyIsOnInstance {
 				companyID = CompanyIDInstance
 			}
 		}
+		*/
+	}
+	//Get Department ID
+	departmentID := ""
+	departmentNameMapping := fmt.Sprintf("%v", CSVImportConf.AssetGenericFieldMapping["h_department_name"])
+	departmentName := getFieldValue("h_department_name", departmentNameMapping, u)
+	if departmentName != "" {
+		departmentIsInCache, DepartmentIDCache := groupInCache(departmentName, 2)
+		if departmentIsInCache {
+			departmentID = DepartmentIDCache
+		}
+		/*irrelevant as all (necessary) groups now in cache
+		else {
+			departmentIsOnInstance, DepartmentIDInstance := searchGroup(departmentName, 2, espXmlmc)
+			if departmentIsOnInstance {
+				departmentID = DepartmentIDInstance
+			}
+		}
+		*/
 	}
 
 	//Get Owned By name
@@ -301,17 +356,24 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 	ownedByMapping := fmt.Sprintf("%v", CSVImportConf.AssetGenericFieldMapping["h_owned_by"])
 	ownedByID := getFieldValue("h_owned_by", ownedByMapping, u)
 	if ownedByID != "" {
-		ownedByIsInCache, ownedByNameCache := customerInCache(ownedByID)
+		ownedByIsInCache := false
+		ownedByNameCache := ""
+		ownedByIsInCache, ownedByNameCache, ownedByID = customerInCache(ownedByID)
 		//-- Check if we have cached the customer already
 		if ownedByIsInCache {
 			ownedByName = ownedByNameCache
-		} else {
-			ownedByIsOnInstance, ownedByNameInstance := searchCustomer(ownedByID, espXmlmc)
+		}
+		/*irrelevant as all users now in cache
+		else {
+			ownedByIsOnInstance := false
+			ownedByNameInstance := ""
+			ownedByIsOnInstance, ownedByNameInstance, ownedByID = searchCustomer(ownedByID, espXmlmc)
 			//-- If Returned set output
 			if ownedByIsOnInstance {
 				ownedByName = ownedByNameInstance
 			}
 		}
+		*/
 	}
 	if ownedByName != "" {
 		ownedByURN = "urn:sys:0:" + ownedByName + ":" + ownedByID
@@ -323,17 +385,24 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 	usedByMapping := fmt.Sprintf("%v", CSVImportConf.AssetGenericFieldMapping["h_used_by"])
 	usedByID := getFieldValue("h_used_by", usedByMapping, u)
 	if usedByID != "" {
-		usedByIsInCache, usedByNameCache := customerInCache(usedByID)
+		usedByIsInCache := false
+		usedByNameCache := ""
+		usedByIsInCache, usedByNameCache, usedByID = customerInCache(usedByID)
 		//-- Check if we have cached the customer already
 		if usedByIsInCache {
 			usedByName = usedByNameCache
-		} else {
-			usedByIsOnInstance, usedByNameInstance := searchCustomer(usedByID, espXmlmc)
+		}
+		/*irrelevant as all (necessary) customer should now be in cache
+		else {
+			usedByIsOnInstance := false
+			usedByNameInstance := ""
+			usedByIsOnInstance, usedByNameInstance, usedByID = searchCustomer(usedByID, espXmlmc)
 			//-- If Returned set output
 			if usedByIsOnInstance {
 				usedByName = usedByNameInstance
 			}
 		}
+		*/
 	}
 	if usedByName != "" {
 		usedByURN = "urn:sys:0:" + usedByName + ":" + usedByID
@@ -345,17 +414,22 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 	if lastLoggedOnUserMapping != "" {
 		lastLoggedOnByID := getFieldValue("h_last_logged_on_user", lastLoggedOnUserMapping, u)
 		if lastLoggedOnByID != "" {
-			lastLoggedOnByIsInCache, lastLoggedOnByNameCache := customerInCache(lastLoggedOnByID)
+			lastLoggedOnByIsInCache, lastLoggedOnByNameCache, lastLoggedOnByID := customerInCache(lastLoggedOnByID)
 			//-- Check if we have cached the customer already
 			if lastLoggedOnByIsInCache {
 				lastLoggedOnByURN = "urn:sys:0:" + lastLoggedOnByNameCache + ":" + lastLoggedOnByID
-			} else {
-				lastLoggedOnByIsOnInstance, lastLoggedOnByNameInstance := searchCustomer(lastLoggedOnByID, espXmlmc)
+			}
+			/*irrelevant as all (necessary) customer should now be in cache
+			else {
+				lastLoggedOnByIsOnInstance := false
+				lastLoggedOnByNameInstance := ""
+				lastLoggedOnByIsOnInstance, lastLoggedOnByNameInstance, lastLoggedOnByID = searchCustomer(lastLoggedOnByID, espXmlmc)
 				//-- If Returned set output
 				if lastLoggedOnByIsOnInstance {
 					lastLoggedOnByURN = "urn:sys:0:" + lastLoggedOnByNameInstance + ":" + lastLoggedOnByID
 				}
 			}
+			*/
 		}
 	}
 	//Get/Set params from map stored against FieldMapping
@@ -363,6 +437,7 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 	strMapping := ""
 	espXmlmc.SetParam("application", appServiceManager)
 	espXmlmc.SetParam("entity", "Asset")
+	espXmlmc.SetParam("returnModifiedData", "false")
 	espXmlmc.OpenElement("primaryEntityData")
 	espXmlmc.OpenElement("record")
 	//Set Class & TypeID
@@ -392,10 +467,15 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 			espXmlmc.SetParam("h_company_name", companyName)
 			espXmlmc.SetParam("h_company_id", companyID)
 		}
+		if strAttribute == "h_department_name" && departmentID != "" && departmentName != "" {
+			espXmlmc.SetParam("h_department_name", departmentName)
+			espXmlmc.SetParam("h_department_id", departmentID)
+		}
 		if strAttribute != "h_site" &&
 			strAttribute != "h_used_by" &&
 			strAttribute != "h_owned_by" &&
 			strAttribute != "h_company_name" &&
+			strAttribute != "h_department_name" &&
 			strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
 			espXmlmc.SetParam(strAttribute, getFieldValue(strAttribute, strMapping, u))
 		}
@@ -433,8 +513,7 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 			logger(1, "API Call XML: "+XMLSTRING, false)
 			return
 		}
-		var xmlRespon xmlmcUpdateResponse
-
+		var xmlRespon xmlmcCreateResponse
 		err := xml.Unmarshal([]byte(XMLCreate), &xmlRespon)
 		if err != nil {
 			mutexCounters.Lock()
@@ -454,7 +533,7 @@ func createAsset(u map[string]string, espXmlmc *apiLib.XmlmcInstStruct) {
 			mutexCounters.Lock()
 			counters.created++
 			mutexCounters.Unlock()
-			assetID := xmlRespon.UpdatedColsPrimary.PrimaryKey
+			assetID := xmlRespon.PrimaryKeyValue
 			//Now add asset URN
 			espXmlmc.SetParam("application", "com.hornbill.servicemanager")
 			espXmlmc.SetParam("entity", "Asset")
@@ -522,12 +601,33 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 		companyIsInCache, CompanyIDCache := groupInCache(companyName, 5)
 		if companyIsInCache {
 			companyID = CompanyIDCache
-		} else {
+		}
+		/*irrelevant as all (necessary) customer should now be in cache
+		else {
 			companyIsOnInstance, CompanyIDInstance := searchGroup(companyName, 5, espXmlmc)
 			if companyIsOnInstance {
 				companyID = CompanyIDInstance
 			}
 		}
+		*/
+	}
+	//Get Department ID
+	departmentID := ""
+	departmentNameMapping := fmt.Sprintf("%v", CSVImportConf.AssetGenericFieldMapping["h_department_name"])
+	departmentName := getFieldValue("h_department_name", departmentNameMapping, u)
+	if departmentName != "" {
+		departmentIsInCache, DepartmentIDCache := groupInCache(departmentName, 2)
+		if departmentIsInCache {
+			departmentID = DepartmentIDCache
+		}
+		/*irrelevant as all (necessary) groups should now be in cache
+		else {
+			departmentIsOnInstance, DepartmentIDInstance := searchGroup(departmentName, 2, espXmlmc)
+			if departmentIsOnInstance {
+				departmentID = DepartmentIDInstance
+			}
+		}
+		*/
 	}
 
 	//Get Owned By name
@@ -536,17 +636,24 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 	ownedByMapping := fmt.Sprintf("%v", CSVImportConf.AssetGenericFieldMapping["h_owned_by"])
 	ownedByID := getFieldValue("h_owned_by", ownedByMapping, u)
 	if ownedByID != "" {
-		ownedByIsInCache, ownedByNameCache := customerInCache(ownedByID)
+		ownedByIsInCache := false
+		ownedByNameCache := ""
+		ownedByIsInCache, ownedByNameCache, ownedByID = customerInCache(ownedByID)
 		//-- Check if we have cached the customer already
 		if ownedByIsInCache {
 			ownedByName = ownedByNameCache
-		} else {
-			ownedByIsOnInstance, ownedByNameInstance := searchCustomer(ownedByID, espXmlmc)
+		}
+		/*irrelevant as all (necessary) customer should now be in cache
+		else {
+			ownedByIsOnInstance := false
+			ownedByNameInstance := ""
+			ownedByIsOnInstance, ownedByNameInstance, ownedByID = searchCustomer(ownedByID, espXmlmc)
 			//-- If Returned set output
 			if ownedByIsOnInstance {
 				ownedByName = ownedByNameInstance
 			}
 		}
+		*/
 	}
 	if ownedByName != "" {
 		ownedByURN = "urn:sys:0:" + ownedByName + ":" + ownedByID
@@ -558,17 +665,24 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 	usedByMapping := fmt.Sprintf("%v", CSVImportConf.AssetGenericFieldMapping["h_used_by"])
 	usedByID := getFieldValue("h_owned_by", usedByMapping, u)
 	if usedByID != "" {
-		usedByIsInCache, usedByNameCache := customerInCache(usedByID)
+		usedByIsInCache := false
+		usedByNameCache := ""
+		usedByIsInCache, usedByNameCache, usedByID = customerInCache(usedByID)
 		//-- Check if we have cached the customer already
 		if usedByIsInCache {
 			usedByName = usedByNameCache
-		} else {
-			usedByIsOnInstance, usedByNameInstance := searchCustomer(usedByID, espXmlmc)
+		}
+		/*irrelevant as all (necessary) customer should now be in cache
+		else {
+			usedByIsOnInstance := false
+			usedByNameInstance := ""
+			usedByIsOnInstance, usedByNameInstance, usedByID = searchCustomer(usedByID, espXmlmc)
 			//-- If Returned set output
 			if usedByIsOnInstance {
 				usedByName = usedByNameInstance
 			}
 		}
+		*/
 	}
 	if usedByName != "" {
 		usedByURN = "urn:sys:0:" + usedByName + ":" + usedByID
@@ -580,17 +694,20 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 	if lastLoggedOnUserMapping != "" {
 		lastLoggedOnByID := getFieldValue("h_last_logged_on_user", lastLoggedOnUserMapping, u)
 		if lastLoggedOnByID != "" {
-			lastLoggedOnByIsInCache, lastLoggedOnByNameCache := customerInCache(lastLoggedOnByID)
+			lastLoggedOnByIsInCache, lastLoggedOnByNameCache, lastLoggedOnByID := customerInCache(lastLoggedOnByID)
 			//-- Check if we have cached the customer already
 			if lastLoggedOnByIsInCache {
 				lastLoggedOnByURN = "urn:sys:0:" + lastLoggedOnByNameCache + ":" + lastLoggedOnByID
-			} else {
-				lastLoggedOnByIsOnInstance, lastLoggedOnByNameInstance := searchCustomer(lastLoggedOnByID, espXmlmc)
+			}
+			/*irrelevant as all (necessary) customer should now be in cache
+			else {
+				lastLoggedOnByIsOnInstance, lastLoggedOnByNameInstance, lastLoggedOnByID := searchCustomer(lastLoggedOnByID, espXmlmc)
 				//-- If Returned set output
 				if lastLoggedOnByIsOnInstance {
 					lastLoggedOnByURN = "urn:sys:0:" + lastLoggedOnByNameInstance + ":" + lastLoggedOnByID
 				}
 			}
+			*/
 		}
 	}
 
@@ -625,10 +742,15 @@ func updateAsset(u map[string]string, strAssetID string, espXmlmc *apiLib.XmlmcI
 			espXmlmc.SetParam("h_company_name", companyName)
 			espXmlmc.SetParam("h_company_id", companyID)
 		}
+		if strAttribute == "h_department_name" && departmentID != "" && departmentName != "" {
+			espXmlmc.SetParam("h_department_name", departmentName)
+			espXmlmc.SetParam("h_department_id", departmentID)
+		}
 		if strAttribute != "h_site" &&
 			strAttribute != "h_used_by" &&
 			strAttribute != "h_owned_by" &&
 			strAttribute != "h_company_name" &&
+			strAttribute != "h_department_name" &&
 			strMapping != "" && getFieldValue(strAttribute, strMapping, u) != "" {
 			espXmlmc.SetParam(strAttribute, getFieldValue(strAttribute, strMapping, u))
 		}

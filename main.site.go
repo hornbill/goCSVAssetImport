@@ -19,6 +19,7 @@ func siteInCache(siteName string) (bool, int) {
 		if site.SiteName == siteName {
 			boolReturn = true
 			intReturn = site.SiteID
+			break
 		}
 	}
 	mutexSite.Unlock()
@@ -59,7 +60,7 @@ func searchSite(siteName string, espXmlmc *apiLib.XmlmcInstStruct) (bool, int) {
 		} else {
 			//-- Check Response
 			if xmlRespon.Params.RowData.Row.SiteName != "" {
-				if strings.ToLower(xmlRespon.Params.RowData.Row.SiteName) == strings.ToLower(siteName) {
+				if strings.EqualFold(xmlRespon.Params.RowData.Row.SiteName, siteName) {
 					intReturn = xmlRespon.Params.RowData.Row.SiteID
 					boolReturn = true
 					//-- Add Site to Cache
@@ -76,3 +77,65 @@ func searchSite(siteName string, espXmlmc *apiLib.XmlmcInstStruct) (bool, int) {
 	}
 	return boolReturn, intReturn
 }
+
+/*loadSites
+func loadSites()
+	pageSize := 20
+	rowStart := 0
+	//-- Load Results in pages of pageSize
+	bar := pb.StartNew(int(count))
+	for (pageCount * pageSize) < count {
+		pageCount++
+		logger(1, "Loading Site List Offset: "+fmt.Sprintf("%d", pageCount)+"\n", false)
+
+		hornbillImport.SetParam("rowstart", strconv.Itoa(pageCount))
+		hornbillImport.SetParam("limit", strconv.Itoa(pageSize))
+		hornbillImport.SetParam("orderByField", "h_site_name")
+		hornbillImport.SetParam("orderByWay", "ascending")
+
+		RespBody, xmlmcErr := hornbillImport.Invoke("apps/com.hornbill.core", "getSitesList")
+
+		var JSONResp xmlmcGroupResponse
+		if xmlmcErr != nil {
+			logger(4, "Unable to Query Group List "+fmt.Sprintf("%s", xmlmcErr), false)
+			break
+		}
+		err := json.Unmarshal([]byte(RespBody), &JSONResp)
+		if err != nil {
+			logger(4, "Unable to Query Groups List "+fmt.Sprintf("%s", err), false)
+			break
+		}
+		if JSONResp.State.Error != "" {
+			logger(4, "Unable to Query Groups List "+JSONResp.State.Error, false)
+			break
+		}
+		//-- Push into Map
+
+		for index := range JSONResp.Params.Group {
+			var newSiteForCache siteListStruct
+			newSiteForCache.SiteID = intReturn
+			newSiteForCache.SiteName = siteName
+			name := []siteListStruct{newSiteForCache}
+			mutexSite.Lock()
+			Sites = append(Sites, name...)
+			mutexSite.Unlock()
+		}
+
+		// Add 100
+		bar.Add(len(JSONResp.Params.Sites.Row))
+		//-- Check for empty result set
+		if len(JSONResp.Params.Group) == 0 {
+			break
+		}
+	}
+	bar.FinishPrint("Sites Loaded  \n")
+}
+<methodCall service="apps/com.hornbill.core" method="getSitesList">
+	<params>
+		<rowstart>0</rowstart>
+		<limit>25</limit>
+		<orderByField>h_site_name</orderByField>
+		<orderByWay>ascending</orderByWay>
+	</params>
+</methodCall>
+*/

@@ -7,7 +7,7 @@ import (
 )
 
 //----- Constants -----
-const version = "1.2.4"
+const version = "1.2.5"
 const appServiceManager = "com.hornbill.servicemanager"
 
 //----- Variables -----
@@ -51,6 +51,7 @@ type counterTypeStruct struct {
 	created        uint16
 	updatedSkipped uint16
 	createskipped  uint16
+	fullyskipped   uint16
 }
 type csvImportConfStruct struct {
 	APIKey                   string
@@ -63,6 +64,7 @@ type csvImportConfStruct struct {
 	CSVLazyQuotes            bool
 	CSVFieldsPerRecord       int
 	CSVCarriageReturnRemoval bool
+	HornbillUserIDColumn     string
 	LogSizeBytes             int64
 	AssetTypes               map[string]interface{}
 	AssetGenericFieldMapping map[string]interface{}
@@ -92,6 +94,11 @@ type xmlmcUpdateResponse struct {
 	UpdatedColsPrimary updatedCols `xml:"params>primaryEntityData>record"`
 	UpdatedColsRelated updatedCols `xml:"params>relatedEntityData>record"`
 	State              stateStruct `xml:"state"`
+}
+type xmlmcCreateResponse struct {
+	MethodResult    string      `xml:"status,attr"`
+	PrimaryKeyValue string      `xml:"params>primaryEntityKeyValue"`
+	State           stateStruct `xml:"state"`
 }
 type updatedCols struct {
 	PrimaryKey string       `xml:"h_pk_asset_id"`
@@ -123,13 +130,15 @@ type siteObjectStruct struct {
 
 //----- Customer Structs
 type customerListStruct struct {
-	CustomerID   string
-	CustomerName string
+	CustomerID     string
+	CustomerName   string
+	CustomerHandle string
 }
 type xmlmcCustomerListResponse struct {
 	MethodResult      string      `xml:"status,attr"`
 	CustomerFirstName string      `xml:"params>firstName"`
 	CustomerLastName  string      `xml:"params>lastName"`
+	CustomerID        string      `xml:"params>customerId"`
 	State             stateStruct `xml:"state"`
 }
 

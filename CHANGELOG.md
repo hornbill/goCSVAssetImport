@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 1.2.5 (May 12th, 2021)
+
+Features:
+- Departments are now mapped (if h_department_name is set - h_department_id will be set behind the scenes) - this now matches the behaviour of organisations (the h_company_name field)
+- Ability to specific the Hornbill User ID column for matching users (HornbillUserIDColumn; options: h_user_id (default), h_employee_id, h_email, h_name, h_attrib_1 & h_login_id) - please note that last logged on, owned by and used by will use the same field - i.e. one can NOT specify which column to match to individually.
+
+Changes:
+- Front-loading of groups (organisations & departments) - to prevent search for each asset
+- If no Asset ID is specified the record will be skipped - instead of activating a search for the asset (to check whether the asset has already been created)
+
+Fixes:
+- Possible fix whereby h_asset_urn was not populated correctly
+
 ## 1.2.4 (March 10th, 2021)
 
 Fixes:
@@ -27,7 +40,7 @@ Fixes:
 
 Features:
 
-- Added support for populating the company fields against an asset. The tool will perform a Company look-up if a company name (in the h_company__name mapping) has been provided, before populating the company name and ID fields against the new or updated asset
+- Added support for populating the company fields against an asset. The tool will perform a Company look-up if a company name (in the h_company_name mapping) has been provided, before populating the company name and ID fields against the new or updated asset
 - Removed need to provide zone CLI parameter
 
 ## 1.1.2 (September 26th, 2018)
