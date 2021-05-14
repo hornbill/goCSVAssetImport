@@ -69,16 +69,56 @@ func main() {
 		maxLogFileSize = CSVImportConf.LogSizeBytes
 	}
 
+	initXMLMC()
+
+	//only load if any of the user colums are set
+	blnHasUserConfigured := false
+	if val, ok := CSVImportConf.AssetGenericFieldMapping["h_owned_by"]; ok {
+		if val != "" {
+			blnHasUserConfigured = true
+		}
+	}
+	if val, ok := CSVImportConf.AssetGenericFieldMapping["h_used_by"]; ok {
+		if val != "" {
+			blnHasUserConfigured = true
+		}
+	}
+	if val, ok := CSVImportConf.AssetTypeFieldMapping["h_last_logged_on_user"]; ok {
+		if val != "" {
+			blnHasUserConfigured = true
+		}
+	}
+	
 	CSVImportConf.HornbillUserIDColumn = strings.ToLower(CSVImportConf.HornbillUserIDColumn)
 	//	if CSVImportConf.HornbillUserIDColumn == "" {
 	//		logger(1, "ID column set, so bringing in all users", false)
-	loadUsers()
+	if blnHasUserConfigured {
+		loadUsers()
+	}
 	//	}
+	
+	//only load if site colum is configured
+	if val, ok := CSVImportConf.AssetGenericFieldMapping["h_site"]; ok {
+		if val != "" {
+			loadSites()
+		}
+	}
+	
 	var queryGroups []string
-	queryGroups = append(queryGroups, "company")
-	queryGroups = append(queryGroups, "department")
+	if val, ok := CSVImportConf.AssetGenericFieldMapping["h_company_name"]; ok {
+		if val != "" {
+			queryGroups = append(queryGroups, "company")
+		}
+	}
+	if val, ok := CSVImportConf.AssetGenericFieldMapping["h_department_name"]; ok {
+		if val != "" {
+			queryGroups = append(queryGroups, "department")
+		}
+	}
 	//	queryGroups[0] = "company"
-	loadGroups(queryGroups)
+	if len(queryGroups) > 0 {
+		loadGroups(queryGroups)
+	}
 
 	//Get asset types, process accordingly
 	for k, v := range CSVImportConf.AssetTypes {
@@ -1031,3 +1071,4 @@ func checkDateString(strDate string) string {
 	strNewDate := re.FindString(strDate)
 	return strNewDate
 }
+

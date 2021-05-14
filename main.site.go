@@ -1,11 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"strconv"
 	"strings"
 
 	apiLib "github.com/hornbill/goApiLib"
+	"github.com/hornbill/pb"
+
 )
 
 // siteInCache -- Function to check if passed-thorugh site name has been cached
@@ -78,64 +82,128 @@ func searchSite(siteName string, espXmlmc *apiLib.XmlmcInstStruct) (bool, int) {
 	return boolReturn, intReturn
 }
 
-/*loadSites
-func loadSites()
-	pageSize := 20
-	rowStart := 0
-	//-- Load Results in pages of pageSize
-	bar := pb.StartNew(int(count))
-	for (pageCount * pageSize) < count {
-		pageCount++
-		logger(1, "Loading Site List Offset: "+fmt.Sprintf("%d", pageCount)+"\n", false)
 
-		hornbillImport.SetParam("rowstart", strconv.Itoa(pageCount))
+//loadSites
+type xmlmcSiteResponse struct {
+	Params struct {
+		Sites string `json:"sites"`
+		Count string `json:"count"`
+	} `json:"params"`
+	State stateJSONStruct `json:"state"`
+}
+
+type xmlmcSitesReader struct {
+	Row []struct {
+			ID   string `json:"h_id"`
+			Name string `json:"h_site_name"`
+	} `json:"row"`
+} 
+type xmlmcIndySite struct {
+	Row struct {
+			ID   string `json:"h_id"`
+			Name string `json:"h_site_name"`
+	} `json:"row"`
+} 
+
+func loadSites(){
+	pageSize := 25
+	rowStart := 0
+	
+	hornbillImport.SetParam("rowstart", "0")
+	hornbillImport.SetParam("limit", "1")
+	hornbillImport.SetParam("orderByField", "h_site_name")
+	hornbillImport.SetParam("orderByWay", "ascending")
+
+	RespBody, xmlmcErr := hornbillImport.Invoke("apps/com.hornbill.core", "getSitesList")
+	var JSONResp xmlmcSiteResponse
+	if xmlmcErr != nil {
+		logger(4, "Unable to Query Sites List "+fmt.Sprintf("%s", xmlmcErr), false)
+		return
+	}
+
+	err := json.Unmarshal([]byte(RespBody), &JSONResp)
+	if err != nil {
+		logger(4, "Unable to Read Sites List "+fmt.Sprintf("%s", err), false)
+		return
+	}
+	if JSONResp.State.Error != "" {
+		logger(4, "Unable to Query Groups List "+JSONResp.State.Error, false)
+		return
+	}
+	count, _ := strconv.Atoi(JSONResp.Params.Count)
+	//-- Load Results in pages of pageSize
+	bar := pb.StartNew(count)
+	for rowStart < count {
+		logger(1, "Loading Site List Offset: "+fmt.Sprintf("%d", rowStart)+"\n", false)
+		loopCount := 0
+
+		hornbillImport.SetParam("rowstart", strconv.Itoa(rowStart))
 		hornbillImport.SetParam("limit", strconv.Itoa(pageSize))
 		hornbillImport.SetParam("orderByField", "h_site_name")
 		hornbillImport.SetParam("orderByWay", "ascending")
 
-		RespBody, xmlmcErr := hornbillImport.Invoke("apps/com.hornbill.core", "getSitesList")
-
-		var JSONResp xmlmcGroupResponse
+		RespBody, xmlmcErr = hornbillImport.Invoke("apps/com.hornbill.core", "getSitesList")
+		//var JSONResp xmlmcSiteResponse
 		if xmlmcErr != nil {
-			logger(4, "Unable to Query Group List "+fmt.Sprintf("%s", xmlmcErr), false)
-			break
+			logger(4, "Unable to Query Sites List "+fmt.Sprintf("%s", xmlmcErr), false)
+			return
 		}
-		err := json.Unmarshal([]byte(RespBody), &JSONResp)
+	
+		err = json.Unmarshal([]byte(RespBody), &JSONResp)
 		if err != nil {
-			logger(4, "Unable to Query Groups List "+fmt.Sprintf("%s", err), false)
-			break
+			logger(4, "Unable to Read Sites List "+fmt.Sprintf("%s", err), false)
+			return
 		}
 		if JSONResp.State.Error != "" {
 			logger(4, "Unable to Query Groups List "+JSONResp.State.Error, false)
-			break
+			return
 		}
-		//-- Push into Map
 
-		for index := range JSONResp.Params.Group {
+		//fmt.Println(JSONResp.Params.Sites)
+		if JSONResp.Params.Sites[7] == 91 { // [
+			var JSONSites xmlmcSitesReader
+			err = json.Unmarshal([]byte(JSONResp.Params.Sites), &JSONSites)
+			if err != nil {
+				logger(4, "Unable to Read Sites "+fmt.Sprintf("%s", err), false)
+				return
+			}
+
+			//-- Push into Map
+
+			for index := range JSONSites.Row {
+				var newSiteForCache siteListStruct
+				newSiteForCache.SiteID, _ = strconv.Atoi(JSONSites.Row[index].ID)
+				newSiteForCache.SiteName = JSONSites.Row[index].Name
+				name := []siteListStruct{newSiteForCache}
+				mutexSite.Lock()
+				Sites = append(Sites, name...)
+				mutexSite.Unlock()
+				//fmt.Println(JSONSites.Row[index].Name)
+				loopCount++
+			}
+		} else {
+			var JSONSites xmlmcIndySite
+			err = json.Unmarshal([]byte(JSONResp.Params.Sites), &JSONSites)
+			if err != nil {
+				logger(4, "Unable to Read Site "+fmt.Sprintf("%s", err), false)
+				return
+			}
 			var newSiteForCache siteListStruct
-			newSiteForCache.SiteID = intReturn
-			newSiteForCache.SiteName = siteName
+			newSiteForCache.SiteID, _ = strconv.Atoi(JSONSites.Row.ID)
+			newSiteForCache.SiteName = JSONSites.Row.Name
 			name := []siteListStruct{newSiteForCache}
 			mutexSite.Lock()
 			Sites = append(Sites, name...)
 			mutexSite.Unlock()
+			//fmt.Println(JSONSites.Row.Name)
+			loopCount++
 		}
-
 		// Add 100
-		bar.Add(len(JSONResp.Params.Sites.Row))
+		bar.Add(loopCount)
+		rowStart += loopCount
 		//-- Check for empty result set
-		if len(JSONResp.Params.Group) == 0 {
-			break
-		}
+
 	}
 	bar.FinishPrint("Sites Loaded  \n")
+//	fmt.Println(Sites)
 }
-<methodCall service="apps/com.hornbill.core" method="getSitesList">
-	<params>
-		<rowstart>0</rowstart>
-		<limit>25</limit>
-		<orderByField>h_site_name</orderByField>
-		<orderByWay>ascending</orderByWay>
-	</params>
-</methodCall>
-*/

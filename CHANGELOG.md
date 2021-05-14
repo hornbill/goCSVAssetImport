@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.2.6 (May 14th, 2021)
+
+Changes:
+- Front-loading of Sites - to prevent search for each asset
+
+Fixes:
+- Optimisation added such that front-loading is not happening if the associated fields are not actually configured.
+
 ## 1.2.5 (May 12th, 2021)
 
 Features:
