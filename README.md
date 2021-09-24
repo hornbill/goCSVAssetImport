@@ -1,3 +1,7 @@
+# DEPRECATED NOTICE
+
+This utility has been deprecated, and replaced by the [Asset Import Utility](https://github.com/hornbill/goDBAssetImport)
+
 # CSV Asset Import Go - [GO](https://golang.org/) Import Script to Hornbill
 
 ## Installation
